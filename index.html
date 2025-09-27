@@ -3,72 +3,117 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Дамп с весов (Web Serial)</title>
+<title>Весы Sartorius (Web Serial)</title>
 <style>
-  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 20px; }
-  h1 { margin: 0 0 12px; font-size: 20px; }
-  fieldset { border: 1px solid #ddd; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
-  legend { padding: 0 6px; color: #555; }
-  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
-  label { font-size: 14px; }
-  select, input, button { padding: 6px 8px; border: 1px solid #ccc; border-radius: 8px; font: inherit; }
-  button { background: #f8f8f8; cursor: pointer; }
-  button:disabled { opacity:.5; cursor:not-allowed; }
-  #status { font-size: 13px; color:#333; margin-top:6px }
-  textarea { width: 100%; height: 280px; font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-  #preview { font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; border:1px solid #eee; border-radius:8px; padding:8px; height:160px; overflow:auto; background:#fafafa; }
-  .muted { color:#666; font-size:12px; }
-  .badge { display:inline-block; background:#eef; border:1px solid #cde; padding:2px 6px; border-radius:999px; font-size:12px; }
+  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; background: #f4f6fb; color: #1f1f1f; margin: 24px; }
+  h1 { margin: 0 0 20px; font-size: 24px; font-weight: 600; color: #1f2544; }
+  .top-bar { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 20px; }
+  button, select, input { font: inherit; border-radius: 8px; border: 1px solid #c6c9d2; background: #ffffff; padding: 8px 14px; transition: background 0.2s ease, border-color 0.2s ease; }
+  button { cursor: pointer; }
+  button:hover:enabled { background: #eef3ff; border-color: #a9b4f2; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .link-button { background: transparent; border: none; color: #3366cc; padding: 0 6px; }
+  .link-button:hover:enabled { text-decoration: underline; background: transparent; border-color: transparent; }
+  .muted { color: #5b6375; font-size: 14px; }
+  .status { font-size: 14px; color: #1f3a6f; flex: 1 1 auto; min-width: 200px; }
+  .badge { background: #eef0ff; border: 1px solid #c8cff7; border-radius: 999px; padding: 2px 10px; font-size: 13px; color: #2a3180; }
+  .display { background: linear-gradient(135deg, #1c2a40, #0d1726); color: #f5f9ff; border-radius: 16px; padding: 32px 24px; text-align: center; box-shadow: 0 20px 45px rgba(16, 26, 48, 0.45); margin-bottom: 24px; }
+  .display-label { font-size: 16px; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.65; margin-bottom: 12px; }
+  .display-row { display: flex; align-items: flex-end; justify-content: center; gap: 16px; flex-wrap: wrap; }
+  .display-value { font-size: clamp(56px, 10vw, 120px); font-weight: 700; line-height: 1; letter-spacing: -0.04em; }
+  .display-unit { font-size: clamp(28px, 5vw, 46px); opacity: 0.85; }
+  .display-info { margin-top: 18px; font-size: 14px; opacity: 0.75; }
+  .history { background: #ffffff; border-radius: 12px; padding: 16px 20px; border: 1px solid #e1e5ef; margin-bottom: 28px; }
+  .history-title { font-size: 16px; font-weight: 600; margin-bottom: 12px; color: #1f2544; }
+  .history-list { list-style: none; margin: 0; padding: 0; max-height: 220px; overflow: auto; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 14px; }
+  .history-list li { padding: 6px 0; border-bottom: 1px solid #eef1fb; }
+  .history-list li:last-child { border-bottom: none; }
+  details.panel { background: #ffffff; border: 1px solid #dbe1f2; border-radius: 12px; padding: 0 18px 18px; }
+  details.panel > summary { cursor: pointer; font-weight: 600; padding: 16px 0; list-style: none; outline: none; }
+  details.panel > summary::-webkit-details-marker { display: none; }
+  details.panel[open] > summary { border-bottom: 1px solid #e6ebfa; margin-bottom: 16px; }
+  .settings-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 12px; }
+  .settings-grid label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: #3a3f52; }
+  .settings-grid input, .settings-grid select { width: 100%; padding: 6px 10px; }
+  .panel-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  .panel-actions button { padding: 8px 18px; }
+  .debug-section label { display: block; font-size: 13px; color: #3a3f52; margin-bottom: 6px; }
+  textarea { width: 100%; min-height: 180px; font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; border: 1px solid #d4d9e6; border-radius: 8px; padding: 10px; resize: vertical; background: #f9fbff; color: #28324e; }
+  @media (max-width: 640px) {
+    body { margin: 16px; }
+    .top-bar { flex-direction: column; align-items: flex-start; }
+    .status { min-width: auto; }
+    .display { padding: 24px 18px; }
+  }
 </style>
 </head>
 <body>
-<h1>Сырой дамп с лабораторных весов (RS-232/USB-Serial)</h1>
+<h1>Весы Sartorius — Web Serial</h1>
+<div class="top-bar">
+  <button id="pick" type="button">Выбрать COM-порт</button>
+  <span id="portName" class="muted">Порт не выбран</span>
+  <span id="status" class="status">Готов к подключению.</span>
+  <span id="rxBytes" class="badge">0 байт</span>
+  <button id="disconnect" class="link-button" type="button" disabled>Отключиться</button>
+</div>
 
-<fieldset>
-  <legend>Параметры соединения</legend>
-  <div class="row">
-    <button id="pick">Выбрать порт…</button>
-    <span id="portName" class="muted">порт не выбран</span>
-    <span id="rxBytes" class="badge">0 байт</span>
+<section class="display" aria-live="polite">
+  <div class="display-label">Последнее показание</div>
+  <div class="display-row">
+    <span id="displayValue" class="display-value">—</span>
+    <span id="displayUnit" class="display-unit"></span>
   </div>
-  <div class="row">
-    <label>Baud:
-      <input id="baud" type="number" value="9600" min="300" step="300" style="width:100px">
+  <div id="displayInfo" class="display-info">Нет данных</div>
+</section>
+
+<section class="history">
+  <div class="history-title">История показаний</div>
+  <ul id="historyList" class="history-list"></ul>
+</section>
+
+<details class="panel">
+  <summary>Настройки и отладка</summary>
+  <div class="settings-grid">
+    <label>Baud
+      <input id="baud" type="number" value="9600" min="300" step="300" />
     </label>
-    <label>Data bits:
+    <label>Data bits
       <select id="dataBits">
         <option value="8">8</option>
         <option value="7" selected>7</option>
       </select>
     </label>
-    <label>Parity:
+    <label>Parity
       <select id="parity">
         <option value="none">none</option>
         <option value="even" selected>even</option>
         <option value="odd">odd</option>
       </select>
     </label>
-    <label>Stop bits:
+    <label>Stop bits
       <select id="stopBits">
         <option value="1" selected>1</option>
         <option value="2">2</option>
       </select>
     </label>
-    <label>Flow:
+    <label>Flow control
       <select id="flow">
         <option value="none" selected>none</option>
         <option value="hardware">hardware (RTS/CTS)</option>
       </select>
     </label>
-    <label>Signals:
+    <label>Линии DTR/RTS
       <select id="signals">
         <option value="none">none</option>
         <option value="dtr" selected>DTR only</option>
         <option value="dtr_rts">DTR + RTS</option>
       </select>
     </label>
-    <label><input id="ignoreBreak" type="checkbox" checked> Ignore BREAK</label>
-    <label>Делимитер (для предпросмотра):
+    <label>
+      <span>Игнорировать BREAK</span>
+      <input id="ignoreBreak" type="checkbox" checked />
+    </label>
+    <label>Разделитель строк
       <select id="delimiter">
         <option value="auto" selected>auto (CR/LF)</option>
         <option value="\n">LF (\n)</option>
@@ -77,31 +122,24 @@
       </select>
     </label>
   </div>
-  <div class="row">
-    <button id="connect" disabled>Подключить</button>
-    <button id="disconnect" disabled>Отключить</button>
-    <button id="clear">Очистить буфер</button>
-    <button id="sendPrint" disabled>Send PRINT</button>
+  <div class="panel-actions">
+    <button id="clear" type="button">Очистить буферы</button>
+    <button id="sendPrint" type="button" disabled>Отправить PRINT</button>
   </div>
-  <div id="status">Дефолт: 9600-7E1. Выберите порт и нажмите «Подключить».</div>
-</fieldset>
-
-<fieldset>
-  <legend>Буфер (сырой поток — скопируйте и пришлите)</legend>
-  <textarea id="raw" readonly></textarea>
-</fieldset>
-
-<fieldset>
-  <legend>Предпросмотр по строкам (для удобства чтения)</legend>
-  <div id="preview"></div>
-</fieldset>
+  <div class="debug-section">
+    <label for="raw">Сырые данные</label>
+    <textarea id="raw" readonly></textarea>
+  </div>
+</details>
 
 <script>
 (() => {
   const els = {
     pick: document.getElementById('pick'),
     portName: document.getElementById('portName'),
+    status: document.getElementById('status'),
     rxBytes: document.getElementById('rxBytes'),
+    disconnect: document.getElementById('disconnect'),
     baud: document.getElementById('baud'),
     dataBits: document.getElementById('dataBits'),
     parity: document.getElementById('parity'),
@@ -110,130 +148,321 @@
     signals: document.getElementById('signals'),
     ignoreBreak: document.getElementById('ignoreBreak'),
     delimiter: document.getElementById('delimiter'),
-    connect: document.getElementById('connect'),
-    disconnect: document.getElementById('disconnect'),
     clear: document.getElementById('clear'),
     sendPrint: document.getElementById('sendPrint'),
-    status: document.getElementById('status'),
     raw: document.getElementById('raw'),
-    preview: document.getElementById('preview'),
+    displayValue: document.getElementById('displayValue'),
+    displayUnit: document.getElementById('displayUnit'),
+    displayInfo: document.getElementById('displayInfo'),
+    historyList: document.getElementById('historyList')
   };
+
+  const MAX_HISTORY = 25;
+  const history = [];
+  const timeFormatter = new Intl.DateTimeFormat('ru-RU', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
 
   let port = null;
   let reader = null;
+  let decoder = null;
+  let readStreamClosed = null;
   let connected = false;
+  let closing = false;
+  let buffer = '';
   let rxCount = 0;
-  let previewBuf = "";
 
-  function setStatus(msg) { els.status.textContent = msg; }
-  function setButtons() {
-    els.connect.disabled = !port || connected;
+  function setStatus(message) {
+    els.status.textContent = message;
+  }
+
+  function updateRxBadge() {
+    els.rxBytes.textContent = `${rxCount.toLocaleString('ru-RU')} байт`;
+  }
+
+  function setUiState() {
+    els.pick.disabled = connected;
     els.disconnect.disabled = !connected;
     els.sendPrint.disabled = !connected;
   }
-  function updateRxBadge() { els.rxBytes.textContent = rxCount + " байт"; }
-  function appendRaw(text) {
-    els.raw.value += text;
+
+  function resetDisplay() {
+    els.displayValue.textContent = '—';
+    els.displayUnit.textContent = '';
+    els.displayInfo.textContent = 'Нет данных';
+    els.historyList.innerHTML = '';
+  }
+
+  function appendRaw(chunk) {
+    els.raw.value += chunk;
+    if (els.raw.value.length > 20000) {
+      els.raw.value = els.raw.value.slice(-20000);
+    }
     els.raw.scrollTop = els.raw.scrollHeight;
   }
-  function updatePreview(addedText) {
-    previewBuf += addedText || "";
-    const delim = els.delimiter.value;
+
+  function processIncoming(chunk) {
+    buffer += chunk;
+    flushBuffer();
+  }
+
+  function flushBuffer() {
     let parts;
-    if (delim === 'auto') {
-      parts = previewBuf.split(/\r\n|\n|\r/);
+    const delimiter = getDelimiter();
+    if (delimiter === null) {
+      parts = buffer.split(/\r\n|\n|\r/);
     } else {
-      const d = delim.replace('\\r','\r').replace('\\n','\n');
-      parts = previewBuf.split(d);
+      parts = buffer.split(delimiter);
     }
-    previewBuf = parts.pop();
-    const shown = parts.slice(-200).join("\n");
-    els.preview.textContent = shown;
-    els.preview.scrollTop = els.preview.scrollHeight;
+    buffer = parts.pop();
+    for (const part of parts) {
+      handleLine(part);
+    }
+  }
+
+  function getDelimiter() {
+    const value = els.delimiter.value;
+    if (value === 'auto') return null;
+    return value.replace(/\\r/g, '\r').replace(/\\n/g, '\n');
+  }
+
+  function handleLine(line) {
+    const cleaned = line.trim();
+    if (!cleaned) return;
+    const measurement = parseMeasurement(cleaned);
+    measurement.timestamp = new Date();
+    history.push(measurement);
+    if (history.length > MAX_HISTORY) {
+      history.shift();
+    }
+    updateDisplay(measurement);
+  }
+
+  function parseMeasurement(line) {
+    const match = line.match(/^([+-]?)\s*([\d.,]+)(?:\s*([^\d\s]+))?/);
+    if (!match) {
+      return {
+        raw: line,
+        numericValue: null,
+        formattedValue: line,
+        unit: '',
+        sign: '',
+        display: line
+      };
+    }
+
+    const sign = match[1] || '';
+    const rawValue = match[2];
+    const unit = match[3] || '';
+    const normalized = rawValue.replace(',', '.');
+    const numericValue = Number((sign || '') + normalized);
+    const decimalIndexComma = rawValue.indexOf(',');
+    const decimalIndexDot = rawValue.indexOf('.');
+    const decimalIndex = Math.max(decimalIndexComma, decimalIndexDot);
+    const decimals = decimalIndex >= 0 ? rawValue.length - decimalIndex - 1 : 0;
+
+    if (!Number.isFinite(numericValue)) {
+      const displayFallback = unit ? `${rawValue} ${unit}` : rawValue;
+      return {
+        raw: line,
+        numericValue: null,
+        formattedValue: displayFallback,
+        unit,
+        sign,
+        display: displayFallback
+      };
+    }
+
+    const localeValue = numericValue.toLocaleString('ru-RU', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals
+    });
+    const formattedValue = sign === '+' && !localeValue.startsWith('+') ? `+${localeValue}` : localeValue;
+    const display = unit ? `${formattedValue} ${unit}` : formattedValue;
+
+    return {
+      raw: line,
+      numericValue,
+      formattedValue,
+      unit,
+      sign,
+      decimals,
+      display
+    };
+  }
+
+  function updateDisplay(measurement) {
+    if (!measurement) {
+      resetDisplay();
+      return;
+    }
+
+    if (measurement.numericValue !== null && measurement.numericValue !== undefined) {
+      els.displayValue.textContent = measurement.formattedValue;
+      els.displayUnit.textContent = measurement.unit || '';
+    } else {
+      els.displayValue.textContent = measurement.display;
+      els.displayUnit.textContent = '';
+    }
+
+    els.displayInfo.textContent = `Получено ${timeFormatter.format(measurement.timestamp)}`;
+    renderHistory();
+  }
+
+  function renderHistory() {
+    els.historyList.innerHTML = '';
+    for (const item of history.slice().reverse()) {
+      const li = document.createElement('li');
+      const timeLabel = timeFormatter.format(item.timestamp);
+      li.textContent = `[${timeLabel}] ${item.display ?? item.raw}`;
+      els.historyList.appendChild(li);
+    }
+  }
+
+  function clearBuffers() {
+    els.raw.value = '';
+    buffer = '';
+    rxCount = 0;
+    history.length = 0;
+    updateRxBadge();
+    resetDisplay();
+  }
+
+  function formatPortInfo(info) {
+    const parts = [];
+    if (info.usbVendorId) {
+      parts.push(`VID:${info.usbVendorId.toString(16).padStart(4, '0').toUpperCase()}`);
+    }
+    if (info.usbProductId) {
+      parts.push(`PID:${info.usbProductId.toString(16).padStart(4, '0').toUpperCase()}`);
+    }
+    if (parts.length) {
+      return `USB ${parts.join(', ')}`;
+    }
+    return 'Порт выбран';
+  }
+
+  async function applySignals(active) {
+    if (!port || typeof port.setSignals !== 'function') return;
+    const mode = els.signals.value;
+    const signals = { dataTerminalReady: false, requestToSend: false };
+    if (active) {
+      if (mode === 'dtr') signals.dataTerminalReady = true;
+      if (mode === 'dtr_rts') {
+        signals.dataTerminalReady = true;
+        signals.requestToSend = true;
+      }
+    }
+    try {
+      await port.setSignals(signals);
+    } catch (error) {
+      console.warn('setSignals failed', error);
+    }
   }
 
   async function pickPort() {
     try {
       port = await navigator.serial.requestPort();
       const info = port.getInfo?.() || {};
-      els.portName.textContent = `выбран (USB VID:${(info.usbVendorId ?? '—')}, PID:${(info.usbProductId ?? '—')})`;
-      setStatus('Порт выбран. Параметры по умолчанию: 9600-7E1. Нажмите «Подключить».');
-      setButtons();
-    } catch (e) {
-      setStatus('Порт не выбран: ' + e.message);
+      els.portName.textContent = formatPortInfo(info);
+      setStatus('Порт выбран, соединяюсь...');
+      setUiState();
+      await connect();
+    } catch (error) {
+      setStatus('Порт не выбран: ' + (error && error.message ? error.message : error));
     }
-  }
-
-  async function applySignals(up) {
-    if (!port || typeof port.setSignals !== 'function') return;
-    const mode = els.signals.value;
-    const sig = { dataTerminalReady: false, requestToSend: false };
-    if (up) {
-      if (mode === 'dtr') sig.dataTerminalReady = true;
-      if (mode === 'dtr_rts') { sig.dataTerminalReady = true; sig.requestToSend = true; }
-    }
-    try { await port.setSignals(sig); } catch (e) { console.warn('setSignals failed', e); }
   }
 
   async function connect() {
-    if (!port) return setStatus('Сначала выберите порт.');
+    if (!port) return;
     try {
       await port.open({
         baudRate: Number(els.baud.value || 9600),
         dataBits: Number(els.dataBits.value || 7),
         stopBits: Number(els.stopBits.value || 1),
         parity: els.parity.value || 'even',
-        flowControl: (els.flow.value === 'hardware' ? 'hardware' : 'none'),
+        flowControl: els.flow.value === 'hardware' ? 'hardware' : 'none'
       });
 
       await applySignals(true);
 
-      const decoder = new TextDecoderStream();
-      port.readable.pipeTo(decoder.writable);
+      decoder = new TextDecoderStream();
+      readStreamClosed = port.readable.pipeTo(decoder.writable);
       reader = decoder.readable.getReader();
 
-      connected = true; setButtons();
-      setStatus('Соединено. Нажмите PRINT на весах.');
-      rxCount = 0; updateRxBadge(); previewBuf = "";
+      connected = true;
+      closing = false;
+      clearBuffers();
+      setUiState();
+      setStatus('Подключено. Ждём данные...');
 
       while (connected) {
+        let result;
         try {
-          const { value, done } = await reader.read();
-          if (done) break;
-          if (value) {
-            rxCount += value.length; updateRxBadge();
-            appendRaw(value); updatePreview(value);
-          }
-        } catch (e) {
-          const msg = String(e && e.message || e).toLowerCase();
+          result = await reader.read();
+        } catch (error) {
+          const msg = String(error && error.message ? error.message : error).toLowerCase();
           if (els.ignoreBreak.checked && msg.includes('break')) {
-            // игнорируем BREAK и продолжаем
             continue;
           }
-          throw e;
+          throw error;
+        }
+
+        const { value, done } = result;
+        if (done) break;
+        if (value) {
+          rxCount += value.length;
+          updateRxBadge();
+          appendRaw(value);
+          processIncoming(value);
         }
       }
-    } catch (e) {
-      setStatus('Ошибка соединения: ' + e.message);
-      try { if (reader) await reader.releaseLock(); } catch {}
-      try { if (port) await port.close(); } catch {}
-      connected = false; setButtons();
+
+      if (!closing) {
+        setStatus('Устройство закрыло соединение.');
+      }
+    } catch (error) {
+      if (!closing) {
+        setStatus('Ошибка подключения: ' + (error && error.message ? error.message : error));
+      }
+    } finally {
+      await releasePort();
+      connected = false;
+      setUiState();
+      closing = false;
     }
   }
 
-  async function disconnect() {
-    connected = false;
-    try { if (reader) await reader.cancel(); } catch {}
+  async function releasePort() {
+    if (reader) {
+      try { await reader.cancel(); } catch {}
+      try { await reader.releaseLock(); } catch {}
+      reader = null;
+    }
+    if (decoder) {
+      try { await readStreamClosed; } catch {}
+      decoder = null;
+      readStreamClosed = null;
+    }
     await applySignals(false);
-    try { if (port) await port.close(); } catch {}
-    setButtons(); setStatus('Отключено.');
+    if (port) {
+      try { await port.close(); } catch {}
+    }
+    port = null;
+    els.portName.textContent = 'Порт не выбран';
   }
 
-  function clearBuffers() {
-    els.raw.value = '';
-    els.preview.textContent = '';
-    previewBuf = '';
-    rxCount = 0; updateRxBadge();
+  async function disconnect(manual = true) {
+    if (!port && !reader && !connected) return;
+    closing = true;
+    connected = false;
+    await releasePort();
+    if (manual) {
+      setStatus('Соединение разорвано.');
+    }
+    setUiState();
   }
 
   async function sendPrint() {
@@ -242,29 +471,31 @@
       const writer = port.writable.getWriter();
       await writer.write(new TextEncoder().encode('P\r\n'));
       writer.releaseLock();
-      setStatus('Команда PRINT отправлена (P\\r\\n). Если реакции нет — попробуйте физическую кнопку PRINT или другой режим вывода.');
-    } catch (e) {
-      setStatus('Не удалось отправить PRINT: ' + e.message);
+      setStatus('Команда PRINT отправлена.');
+    } catch (error) {
+      setStatus('Ошибка при отправке PRINT: ' + (error && error.message ? error.message : error));
     }
   }
 
-  // Wire UI
   els.pick.addEventListener('click', pickPort);
-  els.connect.addEventListener('click', connect);
-  els.disconnect.addEventListener('click', disconnect);
+  els.disconnect.addEventListener('click', () => { disconnect(true); });
   els.clear.addEventListener('click', clearBuffers);
   els.sendPrint.addEventListener('click', sendPrint);
-  els.delimiter.addEventListener('change', () => updatePreview(''));
+  els.delimiter.addEventListener('change', flushBuffer);
 
-  // Feature detection
   if (!('serial' in navigator)) {
     setStatus('Браузер не поддерживает Web Serial API. Используйте Chrome/Edge/Brave/Opera по HTTPS или http://localhost.');
     els.pick.disabled = true;
-    els.connect.disabled = true;
-  } else {
-    setStatus('Дефолт: 9600-7E1. Выберите порт и нажмите «Подключить».');
+    return;
   }
+
+  setStatus('Готов к подключению.');
+  updateRxBadge();
+  resetDisplay();
+  setUiState();
 })();
 </script>
 </body>
 </html>
+
+
