@@ -37,14 +37,14 @@
     </label>
     <label>Data bits:
       <select id="dataBits">
-        <option value="8" selected>8</option>
-        <option value="7">7</option>
+        <option value="8">8</option>
+        <option value="7" selected>7</option>
       </select>
     </label>
     <label>Parity:
       <select id="parity">
-        <option value="none" selected>none</option>
-        <option value="even">even</option>
+        <option value="none">none</option>
+        <option value="even" selected>even</option>
         <option value="odd">odd</option>
       </select>
     </label>
@@ -78,7 +78,7 @@
     <button id="clear">Очистить буфер</button>
     <button id="sendPrint" disabled>Send PRINT</button>
   </div>
-  <div id="status">Готово. Выберите порт и нажмите «Подключить».</div>
+  <div id="status">Дефолт: 9600-7E1. Выберите порт и нажмите «Подключить».</div>
 </fieldset>
 
 <fieldset>
@@ -140,8 +140,8 @@
       const d = delim.replace('\\r','\r').replace('\\n','\n');
       parts = previewBuf.split(d);
     }
-    previewBuf = parts.pop(); // хвост остаётся в буфере
-    const shown = parts.slice(-200).join("\n"); // последние строки
+    previewBuf = parts.pop();
+    const shown = parts.slice(-200).join("\n");
     els.preview.textContent = shown;
     els.preview.scrollTop = els.preview.scrollHeight;
   }
@@ -151,7 +151,7 @@
       port = await navigator.serial.requestPort();
       const info = port.getInfo?.() || {};
       els.portName.textContent = `выбран (USB VID:${(info.usbVendorId||'—')}, PID:${(info.usbProductId||'—')})`;
-      setStatus('Порт выбран. Установите параметры и нажмите «Подключить».');
+      setStatus('Порт выбран. Параметры по умолчанию: 9600-7E1. Нажмите «Подключить».');
       els.connect.disabled = false;
     } catch (e) {
       setStatus('Порт не выбран: ' + e.message);
@@ -163,19 +163,14 @@
     try {
       await port.open({
         baudRate: Number(els.baud.value || 9600),
-        dataBits: Number(els.dataBits.value || 8),
+        dataBits: Number(els.dataBits.value || 7),     // дефолт 7
         stopBits: Number(els.stopBits.value || 1),
-        parity: els.parity.value || 'none',
+        parity: els.parity.value || 'even',            // дефолт even
         flowControl: (els.flow.value === 'hardware' ? 'hardware' : 'none'),
       });
 
-      // Поднять DTR/RTS при старте (если отмечено и драйвер поддерживает)
       if (els.raiseSignals.checked && typeof port.setSignals === 'function') {
-        try {
-          await port.setSignals({ dataTerminalReady: true, requestToSend: true });
-        } catch (e) {
-          console.warn('setSignals failed:', e);
-        }
+        try { await port.setSignals({ dataTerminalReady: true, requestToSend: true }); } catch (e) { console.warn('setSignals failed:', e); }
       }
 
       const decoder = new TextDecoderStream();
@@ -184,7 +179,7 @@
 
       connected = true;
       setButtons();
-      setStatus('Соединено. Идёт приём… (если тишина — нажмите PRINT на весах)');
+      setStatus('Соединено. Идёт приём… (если тишина — нажмите PRINT на весах).');
       rxCount = 0; updateRxBadge();
       previewBuf = "";
 
@@ -209,9 +204,7 @@
 
   async function disconnect() {
     connected = false;
-    try {
-      if (reader) await reader.cancel();
-    } catch {}
+    try { if (reader) await reader.cancel(); } catch {}
     try {
       if (port && typeof port.setSignals === 'function') {
         try { await port.setSignals({ dataTerminalReady: false, requestToSend: false }); } catch {}
@@ -233,16 +226,14 @@
     if (!port || !port.writable) return;
     try {
       const writer = port.writable.getWriter();
-      // Часто встречается 'P\r\n'. Если модель требует другое — увидим по дампу.
       await writer.write(new TextEncoder().encode('P\r\n'));
       writer.releaseLock();
-      setStatus('Команда PRINT отправлена (P\\r\\n). Если реакции нет — модель может ждать другую команду или режим continuous.');
+      setStatus('Команда PRINT отправлена (P\\r\\n). Если реакции нет — попробуйте физическую кнопку PRINT или другой режим вывода.');
     } catch (e) {
       setStatus('Не удалось отправить PRINT: ' + e.message);
     }
   }
 
-  // Wire UI
   els.pick.addEventListener('click', pickPort);
   els.connect.addEventListener('click', connect);
   els.disconnect.addEventListener('click', disconnect);
@@ -250,13 +241,12 @@
   els.sendPrint.addEventListener('click', sendPrint);
   els.delimiter.addEventListener('change', () => updatePreview(''));
 
-  // Feature detection
   if (!('serial' in navigator)) {
     setStatus('Браузер не поддерживает Web Serial API. Используйте Chrome/Edge/Brave/Opera по HTTPS или http://localhost.');
     els.pick.disabled = true;
     els.connect.disabled = true;
   } else {
-    setStatus('Готово. Выберите порт, при необходимости скорректируйте параметры и нажмите «Подключить».');
+    setStatus('Дефолт: 9600-7E1. Выберите порт и нажмите «Подключить».');
   }
 })();
 </script>
