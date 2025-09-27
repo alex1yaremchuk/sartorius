@@ -1,299 +1,226 @@
 <!doctype html>
 <html lang="ru">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Дамп данных с весов (Web Serial)</title>
-  <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 20px; }
-    h1 { margin: 0 0 12px; font-size: 20px; }
-    fieldset { border: 1px solid #ddd; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
-    legend { padding: 0 6px; color: #555; }
-    label { display: inline-block; margin-right: 12px; }
-    button { padding: 8px 12px; border-radius: 8px; border: 1px solid #ccc; background: #f8f8f8; cursor: pointer; }
-    button:disabled { opacity: .5; cursor: not-allowed; }
-    #status { margin: 8px 0; color: #333; font-size: 14px; }
-    #preview { font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; border: 1px solid #eee; border-radius: 8px; padding: 8px; height: 200px; overflow: auto; background: #fafafa; }
-    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    .num { font-weight: 600; }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Дамп с весов (Web Serial)</title>
+<style>
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 20px; }
+  h1 { margin: 0 0 12px; font-size: 20px; }
+  fieldset { border: 1px solid #ddd; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+  legend { padding: 0 6px; color: #555; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  label { font-size: 14px; }
+  select, input, button { padding: 6px 8px; border: 1px solid #ccc; border-radius: 8px; font: inherit; }
+  button { background: #f8f8f8; cursor: pointer; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  #status { font-size: 13px; color:#333; margin-top:6px }
+  textarea { width: 100%; height: 280px; font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  #preview { font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; border:1px solid #eee; border-radius:8px; padding:8px; height:160px; overflow:auto; background:#fafafa; }
+  .muted { color:#666; font-size:12px; }
+  .badge { display:inline-block; background:#eef; border:1px solid #cde; padding:2px 6px; border-radius:999px; font-size:12px; }
+</style>
 </head>
 <body>
-  <h1>Сбор дампа с лабораторных весов (Sartorius / RS-232 → USB-Serial)</h1>
+<h1>Сырой дамп с лабораторных весов (RS-232/USB-Serial)</h1>
 
-  <fieldset>
-    <legend>Настройки порта</legend>
-    <div class="row">
-      <label>Порт: <button id="pickPort">Выбрать…</button> <span id="portName">не выбран</span></label>
-    </div>
-    <div class="row">
-      <label>Baud: <input id="baud" type="number" value="9600" min="300" step="300" style="width:90px"></label>
-      <label>Data bits:
-        <select id="dataBits">
-          <option value="8" selected>8</option>
-          <option value="7">7</option>
-        </select>
-      </label>
-      <label>Parity:
-        <select id="parity">
-          <option value="none" selected>none</option>
-          <option value="even">even</option>
-          <option value="odd">odd</option>
-        </select>
-      </label>
-      <label>Stop bits:
-        <select id="stopBits">
-          <option value="1" selected>1</option>
-          <option value="2">2</option>
-        </select>
-      </label>
-      <label>Flow:
-        <select id="flow">
-          <option value="none" selected>none</option>
-          <option value="hardware">hardware (RTS/CTS)</option>
-        </select>
-      </label>
-      <label>Делимитер:
-        <select id="delimiter">
-          <option value="auto" selected>auto (CR/LF)</option>
-          <option value="\n">LF (\n)</option>
-          <option value="\r">CR (\r)</option>
-          <option value="\r\n">CRLF (\r\n)</option>
-        </select>
-      </label>
-    </div>
-  </fieldset>
+<fieldset>
+  <legend>Параметры соединения</legend>
+  <div class="row">
+    <button id="pick">Выбрать порт…</button>
+    <span id="portName" class="muted">порт не выбран</span>
+    <span id="rxBytes" class="badge">0 байт</span>
+  </div>
+  <div class="row">
+    <label>Baud:
+      <input id="baud" type="number" value="9600" min="300" step="300" style="width:100px">
+    </label>
+    <label>Data bits:
+      <select id="dataBits">
+        <option value="8" selected>8</option>
+        <option value="7">7</option>
+      </select>
+    </label>
+    <label>Parity:
+      <select id="parity">
+        <option value="none" selected>none</option>
+        <option value="even">even</option>
+        <option value="odd">odd</option>
+      </select>
+    </label>
+    <label>Stop bits:
+      <select id="stopBits">
+        <option value="1" selected>1</option>
+        <option value="2">2</option>
+      </select>
+    </label>
+    <label>Flow:
+      <select id="flow">
+        <option value="none" selected>none</option>
+        <option value="hardware">hardware (RTS/CTS)</option>
+      </select>
+    </label>
+    <label>Делимитер (для предпросмотра):
+      <select id="delimiter">
+        <option value="auto" selected>auto (CR/LF)</option>
+        <option value="\n">LF (\n)</option>
+        <option value="\r">CR (\r)</option>
+        <option value="\r\n">CRLF (\r\n)</option>
+      </select>
+    </label>
+  </div>
+  <div class="row">
+    <button id="connect" disabled>Подключить</button>
+    <button id="disconnect" disabled>Отключить</button>
+    <button id="clear">Очистить буфер</button>
+  </div>
+  <div id="status">Готово. Выберите порт и нажмите «Подключить».</div>
+</fieldset>
 
-  <fieldset>
-    <legend>Запись</legend>
-    <div class="row">
-      <button id="start" disabled>Старт записи</button>
-      <button id="stop" disabled>Стоп</button>
-      <label>Ограничить по времени (сек): <input id="limitSec" type="number" min="0" value="20" style="width:80px"></label>
-      <span id="status">Готово.</span>
-    </div>
-    <div class="row">
-      <button id="downloadTxt" disabled>Скачать .txt</button>
-      <button id="downloadJson" disabled>Скачать .json</button>
-      <span>Записано строк: <span id="count">0</span></span>
-    </div>
-  </fieldset>
+<fieldset>
+  <legend>Буфер (сырой поток — скопируйте и пришлите)</legend>
+  <textarea id="raw" readonly></textarea>
+</fieldset>
 
-  <fieldset>
-    <legend>Предпросмотр (последние строки)</legend>
-    <div id="preview"></div>
-  </fieldset>
-
-  <fieldset>
-    <legend>Текущая «распознанная» цифра</legend>
-    <div>Последняя строка: <span id="lastRaw" class="num">—</span></div>
-    <div>Число (если найдено): <span id="lastNum" class="num">—</span></div>
-  </fieldset>
+<fieldset>
+  <legend>Предпросмотр по строкам (для удобства чтения)</legend>
+  <div id="preview"></div>
+</fieldset>
 
 <script>
 (() => {
   const els = {
-    pickPort: document.getElementById('pickPort'),
+    pick: document.getElementById('pick'),
     portName: document.getElementById('portName'),
+    rxBytes: document.getElementById('rxBytes'),
     baud: document.getElementById('baud'),
     dataBits: document.getElementById('dataBits'),
     parity: document.getElementById('parity'),
     stopBits: document.getElementById('stopBits'),
     flow: document.getElementById('flow'),
     delimiter: document.getElementById('delimiter'),
-    start: document.getElementById('start'),
-    stop: document.getElementById('stop'),
+    connect: document.getElementById('connect'),
+    disconnect: document.getElementById('disconnect'),
+    clear: document.getElementById('clear'),
     status: document.getElementById('status'),
-    downloadTxt: document.getElementById('downloadTxt'),
-    downloadJson: document.getElementById('downloadJson'),
-    count: document.getElementById('count'),
+    raw: document.getElementById('raw'),
     preview: document.getElementById('preview'),
-    lastRaw: document.getElementById('lastRaw'),
-    lastNum: document.getElementById('lastNum'),
-    limitSec: document.getElementById('limitSec'),
   };
 
   let port = null;
   let reader = null;
-  let reading = false;
-  let buffer = "";
-  let dump = [];      // {ts, line}
-  const MAX_PREVIEW = 2000; // символов
+  let connected = false;
+  let rxCount = 0;
+  let previewBuf = "";
 
-  function uiSetConnected(name) {
-    els.portName.textContent = name || 'выбран';
-    els.start.disabled = !port;
-    els.stop.disabled = true;
-    els.downloadTxt.disabled = true;
-    els.downloadJson.disabled = true;
-    els.status.textContent = port ? 'Порт выбран. Нажмите «Старт записи».' : 'Порт не выбран.';
+  function setStatus(msg) { els.status.textContent = msg; }
+  function setButtons() {
+    els.connect.disabled = !port || connected;
+    els.disconnect.disabled = !connected;
   }
-
-  function parseNumber(s) {
-    // Пробуем вытащить первое число (с запятой/точкой, возможен знак)
-    const m = s.replace(',', '.').match(/[-+]?\d+(?:\.\d+)?/);
-    return m ? m[0] : null;
+  function updateRxBadge() { els.rxBytes.textContent = rxCount + " байт"; }
+  function appendRaw(text) {
+    els.raw.value += text;
+    els.raw.scrollTop = els.raw.scrollHeight;
   }
-
-  function appendPreview(line) {
-    const prev = els.preview.textContent;
-    const next = (prev + (prev ? "\n" : "") + line);
-    // держим окно в размере
-    if (next.length > MAX_PREVIEW) {
-      els.preview.textContent = next.slice(-MAX_PREVIEW);
+  function updatePreview(addedText) {
+    previewBuf += addedText;
+    const delim = els.delimiter.value;
+    let parts;
+    if (delim === 'auto') {
+      parts = previewBuf.split(/\r\n|\n|\r/);
     } else {
-      els.preview.textContent = next;
+      const d = delim.replace('\\r','\r').replace('\\n','\n');
+      parts = previewBuf.split(d);
     }
+    previewBuf = parts.pop(); // хвост остаётся в буфере
+    // выводим только последние ~2000 символов для компактности
+    const shown = parts.slice(-200).join("\n");
+    els.preview.textContent = shown;
     els.preview.scrollTop = els.preview.scrollHeight;
   }
 
   async function pickPort() {
     try {
-      port = await navigator.serial.requestPort(/* filters: [] */);
-      uiSetConnected('выбран');
+      port = await navigator.serial.requestPort();
+      const info = port.getInfo?.() || {};
+      els.portName.textContent = `выбран (USB VID:${(info.usbVendorId||'—')}, PID:${(info.usbProductId||'—')})`;
+      setStatus('Порт выбран. Установите параметры и нажмите «Подключить».');
+      els.connect.disabled = false;
     } catch (e) {
-      els.status.textContent = 'Порт не выбран: ' + e.message;
+      setStatus('Порт не выбран: ' + e.message);
     }
   }
 
-  async function startReading() {
-    if (!port) {
-      els.status.textContent = 'Сначала выберите порт.';
-      return;
-    }
+  async function connect() {
+    if (!port) return setStatus('Сначала выберите порт.');
     try {
       await port.open({
         baudRate: Number(els.baud.value || 9600),
         dataBits: Number(els.dataBits.value || 8),
         stopBits: Number(els.stopBits.value || 1),
-        parity: (els.parity.value || 'none'),
+        parity: els.parity.value || 'none',
         flowControl: (els.flow.value === 'hardware' ? 'hardware' : 'none'),
       });
 
-      const textDecoder = new TextDecoderStream();
-      const readableStreamClosed = port.readable.pipeTo(textDecoder.writable);
-      const src = textDecoder.readable;
+      const decoder = new TextDecoderStream();
+      port.readable.pipeTo(decoder.writable);
+      reader = decoder.readable.getReader();
 
-      const delim = els.delimiter.value;
-      const readerStream = src.pipeThrough(new TransformStream({
-        start() { this.buf = ""; },
-        transform(chunk, controller) {
-          this.buf += chunk;
-          let parts;
-          if (delim === 'auto') {
-            parts = this.buf.split(/\r\n|\n|\r/);
-          } else {
-            const d = delim.replace('\\r', '\r').replace('\\n', '\n');
-            parts = this.buf.split(d);
-          }
-          this.buf = parts.pop();
-          for (const p of parts) controller.enqueue(p);
-        }
-      })).getReader();
+      connected = true;
+      setButtons();
+      setStatus('Соединено. Идёт приём…');
+      rxCount = 0; updateRxBadge();
+      previewBuf = "";
 
-      reader = readerStream;
-      reading = true;
-      dump = [];
-      buffer = "";
-      els.preview.textContent = "";
-      els.count.textContent = "0";
-      els.status.textContent = 'Чтение начато…';
-      els.start.disabled = true;
-      els.stop.disabled = false;
-      els.downloadTxt.disabled = true;
-      els.downloadJson.disabled = true;
-
-      const hardLimitMs = Math.max(0, Number(els.limitSec.value || 0)) * 1000;
-      const deadline = hardLimitMs ? (Date.now() + hardLimitMs) : 0;
-
-      while (reading) {
+      while (connected) {
         const { value, done } = await reader.read();
         if (done) break;
-        if (typeof value !== 'string') continue;
-        const line = value.trim();
-        if (!line) continue;
-
-        const ts = Date.now();
-        dump.push({ ts, line });
-        els.count.textContent = String(dump.length);
-        appendPreview(line);
-
-        els.lastRaw.textContent = line;
-        const num = parseNumber(line);
-        els.lastNum.textContent = num ?? '—';
-
-        if (deadline && Date.now() >= deadline) {
-          stopReading();
-          break;
+        if (value) {
+          rxCount += value.length;
+          updateRxBadge();
+          appendRaw(value);
+          updatePreview(value);
         }
       }
     } catch (e) {
-      els.status.textContent = 'Ошибка чтения: ' + e.message;
+      setStatus('Ошибка соединения: ' + e.message);
       try { if (reader) await reader.releaseLock(); } catch {}
-      try { if (port && port.readable) await port.close(); } catch {}
-      reading = false;
-      els.start.disabled = !!port;
-      els.stop.disabled = true;
-      els.downloadTxt.disabled = dump.length === 0;
-      els.downloadJson.disabled = dump.length === 0;
+      try { if (port) await port.close(); } catch {}
+      connected = false;
+      setButtons();
     }
   }
 
-  async function stopReading() {
-    reading = false;
-    els.stop.disabled = true;
+  async function disconnect() {
+    connected = false;
     try { if (reader) await reader.cancel(); } catch {}
     try { if (port) await port.close(); } catch {}
-    els.status.textContent = 'Остановлено. Строк записано: ' + dump.length;
-    els.downloadTxt.disabled = dump.length === 0;
-    els.downloadJson.disabled = dump.length === 0;
-    els.start.disabled = !!port;
+    setButtons();
+    setStatus('Отключено.');
   }
 
-  function downloadTxt() {
-    // Формат строки: ISO-время \t unix_ts \t raw
-    const lines = dump.map(d => {
-      const iso = new Date(d.ts).toISOString();
-      return `${iso}\t${d.ts}\t${d.line}`;
-    }).join('\n');
-    const blob = new Blob([lines], { type: 'text/plain;charset=utf-8' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `scale_dump_${new Date().toISOString().replace(/[:.]/g,'-')}.txt`;
-    a.click();
-    URL.revokeObjectURL(a.href);
+  function clearBuffers() {
+    els.raw.value = '';
+    els.preview.textContent = '';
+    previewBuf = '';
+    rxCount = 0; updateRxBadge();
   }
 
-  function downloadJson() {
-    const blob = new Blob([JSON.stringify({ meta: {
-        baud: Number(els.baud.value||9600),
-        dataBits: Number(els.dataBits.value||8),
-        stopBits: Number(els.stopBits.value||1),
-        parity: els.parity.value||'none',
-        flow: els.flow.value||'none',
-        delimiter: els.delimiter.value,
-        userAgent: navigator.userAgent,
-      }, rows: dump }, null, 2)], { type: 'application/json;charset=utf-8' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `scale_dump_${new Date().toISOString().replace(/[:.]/g,'-')}.json`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  }
+  // Wire UI
+  els.pick.addEventListener('click', pickPort);
+  els.connect.addEventListener('click', connect);
+  els.disconnect.addEventListener('click', disconnect);
+  els.clear.addEventListener('click', clearBuffers);
+  els.delimiter.addEventListener('change', () => updatePreview(''));
 
-  // wire up UI
-  els.pickPort.addEventListener('click', pickPort);
-  els.start.addEventListener('click', startReading);
-  els.stop.addEventListener('click', stopReading);
-  els.downloadTxt.addEventListener('click', downloadTxt);
-  els.downloadJson.addEventListener('click', downloadJson);
-
-  // доступность Web Serial
+  // Feature detection
   if (!('serial' in navigator)) {
-    els.status.textContent = 'Этот браузер не поддерживает Web Serial API. Откройте страницу в Chrome или Edge по HTTPS/localhost.';
-    els.pickPort.disabled = true;
+    setStatus('Браузер не поддерживает Web Serial API. Используйте Chrome/Edge/Brave/Opera по HTTPS или http://localhost.');
+    els.pick.disabled = true;
+    els.connect.disabled = true;
   } else {
-    els.status.textContent = 'Готово. Нажмите «Выбрать…», затем «Старт записи».';
+    setStatus('Готово. Выберите порт, при необходимости скорректируйте параметры и нажмите «Подключить».');
   }
 })();
 </script>
