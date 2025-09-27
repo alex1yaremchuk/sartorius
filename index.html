@@ -67,7 +67,7 @@
         <option value="dtr_rts">DTR + RTS</option>
       </select>
     </label>
-    <label><input id="ignoreBreak" type="checkbox" checked> Ignore BREAK</label>    
+    <label><input id="ignoreBreak" type="checkbox" checked> Ignore BREAK</label>
     <label>Делимитер (для предпросмотра):
       <select id="delimiter">
         <option value="auto" selected>auto (CR/LF)</option>
@@ -76,9 +76,6 @@
         <option value="\r\n">CRLF (\r\n)</option>
       </select>
     </label>
-  </div>
-  <div class="row">
-    <label><input id="raiseSignals" type="checkbox" checked> Поднять DTR/RTS при подключении</label>
   </div>
   <div class="row">
     <button id="connect" disabled>Подключить</button>
@@ -101,17 +98,71 @@
 
 <script>
 (() => {
-  // ... существующие els = { ... } дополни:
-  // signals, ignoreBreak
   const els = {
-    // ...
+    pick: document.getElementById('pick'),
+    portName: document.getElementById('portName'),
+    rxBytes: document.getElementById('rxBytes'),
+    baud: document.getElementById('baud'),
+    dataBits: document.getElementById('dataBits'),
+    parity: document.getElementById('parity'),
+    stopBits: document.getElementById('stopBits'),
     flow: document.getElementById('flow'),
     signals: document.getElementById('signals'),
     ignoreBreak: document.getElementById('ignoreBreak'),
-    // ...
+    delimiter: document.getElementById('delimiter'),
+    connect: document.getElementById('connect'),
+    disconnect: document.getElementById('disconnect'),
+    clear: document.getElementById('clear'),
+    sendPrint: document.getElementById('sendPrint'),
+    status: document.getElementById('status'),
+    raw: document.getElementById('raw'),
+    preview: document.getElementById('preview'),
   };
 
-  // ... остальной код без изменений
+  let port = null;
+  let reader = null;
+  let connected = false;
+  let rxCount = 0;
+  let previewBuf = "";
+
+  function setStatus(msg) { els.status.textContent = msg; }
+  function setButtons() {
+    els.connect.disabled = !port || connected;
+    els.disconnect.disabled = !connected;
+    els.sendPrint.disabled = !connected;
+  }
+  function updateRxBadge() { els.rxBytes.textContent = rxCount + " байт"; }
+  function appendRaw(text) {
+    els.raw.value += text;
+    els.raw.scrollTop = els.raw.scrollHeight;
+  }
+  function updatePreview(addedText) {
+    previewBuf += addedText || "";
+    const delim = els.delimiter.value;
+    let parts;
+    if (delim === 'auto') {
+      parts = previewBuf.split(/\r\n|\n|\r/);
+    } else {
+      const d = delim.replace('\\r','\r').replace('\\n','\n');
+      parts = previewBuf.split(d);
+    }
+    previewBuf = parts.pop();
+    const shown = parts.slice(-200).join("\n");
+    els.preview.textContent = shown;
+    els.preview.scrollTop = els.preview.scrollHeight;
+  }
+
+  async function pickPort() {
+    try {
+      port = await navigator.serial.requestPort();
+      const info = port.getInfo?.() || {};
+      els.portName.textContent = `выбран (USB VID:${(info.usbVendorId ?? '—')}, PID:${(info.usbProductId ?? '—')})`;
+      setStatus('Порт выбран. Параметры по умолчанию: 9600-7E1. Нажмите «Подключить».');
+      setButtons();
+    } catch (e) {
+      setStatus('Порт не выбран: ' + e.message);
+    }
+  }
 
   async function applySignals(up) {
     if (!port || typeof port.setSignals !== 'function') return;
@@ -135,7 +186,7 @@
         flowControl: (els.flow.value === 'hardware' ? 'hardware' : 'none'),
       });
 
-      await applySignals(true); // поднять выбранные линии
+      await applySignals(true);
 
       const decoder = new TextDecoderStream();
       port.readable.pipeTo(decoder.writable);
@@ -156,7 +207,7 @@
         } catch (e) {
           const msg = String(e && e.message || e).toLowerCase();
           if (els.ignoreBreak.checked && msg.includes('break')) {
-            // игнорируем break и продолжаем
+            // игнорируем BREAK и продолжаем
             continue;
           }
           throw e;
@@ -173,7 +224,7 @@
   async function disconnect() {
     connected = false;
     try { if (reader) await reader.cancel(); } catch {}
-    await applySignals(false); // опустить линии
+    await applySignals(false);
     try { if (port) await port.close(); } catch {}
     setButtons(); setStatus('Отключено.');
   }
@@ -197,6 +248,7 @@
     }
   }
 
+  // Wire UI
   els.pick.addEventListener('click', pickPort);
   els.connect.addEventListener('click', connect);
   els.disconnect.addEventListener('click', disconnect);
@@ -204,6 +256,7 @@
   els.sendPrint.addEventListener('click', sendPrint);
   els.delimiter.addEventListener('change', () => updatePreview(''));
 
+  // Feature detection
   if (!('serial' in navigator)) {
     setStatus('Браузер не поддерживает Web Serial API. Используйте Chrome/Edge/Brave/Opera по HTTPS или http://localhost.');
     els.pick.disabled = true;
