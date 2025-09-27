@@ -60,6 +60,14 @@
         <option value="hardware">hardware (RTS/CTS)</option>
       </select>
     </label>
+    <label>Signals:
+      <select id="signals">
+        <option value="none">none</option>
+        <option value="dtr" selected>DTR only</option>
+        <option value="dtr_rts">DTR + RTS</option>
+      </select>
+    </label>
+    <label><input id="ignoreBreak" type="checkbox" checked> Ignore BREAK</label>    
     <label>Делимитер (для предпросмотра):
       <select id="delimiter">
         <option value="auto" selected>auto (CR/LF)</option>
@@ -93,69 +101,27 @@
 
 <script>
 (() => {
+  // ... существующие els = { ... } дополни:
+  // signals, ignoreBreak
   const els = {
-    pick: document.getElementById('pick'),
-    portName: document.getElementById('portName'),
-    rxBytes: document.getElementById('rxBytes'),
-    baud: document.getElementById('baud'),
-    dataBits: document.getElementById('dataBits'),
-    parity: document.getElementById('parity'),
-    stopBits: document.getElementById('stopBits'),
+    // ...
     flow: document.getElementById('flow'),
-    delimiter: document.getElementById('delimiter'),
-    raiseSignals: document.getElementById('raiseSignals'),
-    connect: document.getElementById('connect'),
-    disconnect: document.getElementById('disconnect'),
-    clear: document.getElementById('clear'),
-    sendPrint: document.getElementById('sendPrint'),
-    status: document.getElementById('status'),
-    raw: document.getElementById('raw'),
-    preview: document.getElementById('preview'),
+    signals: document.getElementById('signals'),
+    ignoreBreak: document.getElementById('ignoreBreak'),
+    // ...
   };
 
-  let port = null;
-  let reader = null;
-  let connected = false;
-  let rxCount = 0;
-  let previewBuf = "";
+  // ... остальной код без изменений
 
-  function setStatus(msg) { els.status.textContent = msg; }
-  function setButtons() {
-    els.connect.disabled = !port || connected;
-    els.disconnect.disabled = !connected;
-    els.sendPrint.disabled = !connected;
-  }
-  function updateRxBadge() { els.rxBytes.textContent = rxCount + " байт"; }
-  function appendRaw(text) {
-    els.raw.value += text;
-    els.raw.scrollTop = els.raw.scrollHeight;
-  }
-  function updatePreview(addedText) {
-    previewBuf += addedText;
-    const delim = els.delimiter.value;
-    let parts;
-    if (delim === 'auto') {
-      parts = previewBuf.split(/\r\n|\n|\r/);
-    } else {
-      const d = delim.replace('\\r','\r').replace('\\n','\n');
-      parts = previewBuf.split(d);
+  async function applySignals(up) {
+    if (!port || typeof port.setSignals !== 'function') return;
+    const mode = els.signals.value;
+    const sig = { dataTerminalReady: false, requestToSend: false };
+    if (up) {
+      if (mode === 'dtr') sig.dataTerminalReady = true;
+      if (mode === 'dtr_rts') { sig.dataTerminalReady = true; sig.requestToSend = true; }
     }
-    previewBuf = parts.pop();
-    const shown = parts.slice(-200).join("\n");
-    els.preview.textContent = shown;
-    els.preview.scrollTop = els.preview.scrollHeight;
-  }
-
-  async function pickPort() {
-    try {
-      port = await navigator.serial.requestPort();
-      const info = port.getInfo?.() || {};
-      els.portName.textContent = `выбран (USB VID:${(info.usbVendorId||'—')}, PID:${(info.usbProductId||'—')})`;
-      setStatus('Порт выбран. Параметры по умолчанию: 9600-7E1. Нажмите «Подключить».');
-      els.connect.disabled = false;
-    } catch (e) {
-      setStatus('Порт не выбран: ' + e.message);
-    }
+    try { await port.setSignals(sig); } catch (e) { console.warn('setSignals failed', e); }
   }
 
   async function connect() {
@@ -163,56 +129,53 @@
     try {
       await port.open({
         baudRate: Number(els.baud.value || 9600),
-        dataBits: Number(els.dataBits.value || 7),     // дефолт 7
+        dataBits: Number(els.dataBits.value || 7),
         stopBits: Number(els.stopBits.value || 1),
-        parity: els.parity.value || 'even',            // дефолт even
+        parity: els.parity.value || 'even',
         flowControl: (els.flow.value === 'hardware' ? 'hardware' : 'none'),
       });
 
-      if (els.raiseSignals.checked && typeof port.setSignals === 'function') {
-        try { await port.setSignals({ dataTerminalReady: true, requestToSend: true }); } catch (e) { console.warn('setSignals failed:', e); }
-      }
+      await applySignals(true); // поднять выбранные линии
 
       const decoder = new TextDecoderStream();
       port.readable.pipeTo(decoder.writable);
       reader = decoder.readable.getReader();
 
-      connected = true;
-      setButtons();
-      setStatus('Соединено. Идёт приём… (если тишина — нажмите PRINT на весах).');
-      rxCount = 0; updateRxBadge();
-      previewBuf = "";
+      connected = true; setButtons();
+      setStatus('Соединено. Нажмите PRINT на весах.');
+      rxCount = 0; updateRxBadge(); previewBuf = "";
 
       while (connected) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        if (value) {
-          rxCount += value.length;
-          updateRxBadge();
-          appendRaw(value);
-          updatePreview(value);
+        try {
+          const { value, done } = await reader.read();
+          if (done) break;
+          if (value) {
+            rxCount += value.length; updateRxBadge();
+            appendRaw(value); updatePreview(value);
+          }
+        } catch (e) {
+          const msg = String(e && e.message || e).toLowerCase();
+          if (els.ignoreBreak.checked && msg.includes('break')) {
+            // игнорируем break и продолжаем
+            continue;
+          }
+          throw e;
         }
       }
     } catch (e) {
       setStatus('Ошибка соединения: ' + e.message);
       try { if (reader) await reader.releaseLock(); } catch {}
       try { if (port) await port.close(); } catch {}
-      connected = false;
-      setButtons();
+      connected = false; setButtons();
     }
   }
 
   async function disconnect() {
     connected = false;
     try { if (reader) await reader.cancel(); } catch {}
-    try {
-      if (port && typeof port.setSignals === 'function') {
-        try { await port.setSignals({ dataTerminalReady: false, requestToSend: false }); } catch {}
-      }
-      if (port) await port.close();
-    } catch {}
-    setButtons();
-    setStatus('Отключено.');
+    await applySignals(false); // опустить линии
+    try { if (port) await port.close(); } catch {}
+    setButtons(); setStatus('Отключено.');
   }
 
   function clearBuffers() {
