@@ -29,6 +29,7 @@
   .settings-grid{ display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); margin-bottom:12px }
   .settings-grid label{ display:flex; flex-direction:column; gap:6px; font-size:14px; color:#3a3f52 }
   .panel-actions{ display:flex; gap:12px; flex-wrap:wrap; margin-bottom:16px }
+  .tare-actions{ display:flex; gap:12px; flex-wrap:wrap; margin-bottom:24px; justify-content:center }
   textarea{ width:100%; min-height:180px; font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; border:1px solid #d4d9e6; border-radius:8px; padding:10px; resize:vertical; background:#f9fbff; color:#28324e }
   @media (max-width:640px){ body{ margin:16px } .top-bar{ flex-direction:column; align-items:flex-start } .status{ min-width:auto } .display{ padding:24px 18px } }
 </style>
@@ -52,6 +53,13 @@
   </div>
   <div id="displayInfo" class="display-info">Нет данных</div>
 </section>
+
+<div class="tare-actions" aria-label="Tare commands">
+  <button type="button" class="tare-button" data-tare-tail="crlf" data-tare-label="CRLF" disabled>Tare (CRLF)</button>
+  <button type="button" class="tare-button" data-tare-tail="cr" data-tare-label="CR" disabled>Tare (CR)</button>
+  <button type="button" class="tare-button" data-tare-tail="lf" data-tare-label="LF" disabled>Tare (LF)</button>
+  <button type="button" class="tare-button" data-tare-tail="none" data-tare-label="none" disabled>Tare (no tail)</button>
+</div>
 
 <section class="history">
   <div class="history-title">История показаний</div>
@@ -110,6 +118,7 @@
     delimiter: document.getElementById('delimiter'),
     clear: document.getElementById('clear'),
     sendPrint: document.getElementById('sendPrint'),
+    tareButtons: Array.from(document.querySelectorAll('[data-tare-tail]')),
     raw: document.getElementById('raw'),
     displayValue: document.getElementById('displayValue'),
     displayUnit: document.getElementById('displayUnit'),
@@ -119,13 +128,15 @@
 
   const MAX_HISTORY = 25;
   const history = [];
+  const TARE_SUFFIXES = { crlf: '\r\n', cr: '\r', lf: '\n', none: '' };
   const timeFmt = new Intl.DateTimeFormat('ru-RU', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
 
   let port=null, reader=null, decoder=null, readClosed=null;
   let connected=false, buffer='', rxCount=0;
 
   function setStatus(s){ els.status.textContent = s; }
-  function setUi(){ els.pick.disabled = connected; els.disconnect.disabled = !connected; els.sendPrint.disabled = !connected; }
+  function setUi(){ els.pick.disabled = connected; els.disconnect.disabled = !connected; els.sendPrint.disabled = !connected;
+    els.tareButtons.forEach(btn => { btn.disabled = !connected; }); }
   function resetDisplay(){ els.displayValue.textContent='—'; els.displayUnit.textContent=''; els.displayInfo.textContent='Нет данных'; els.historyList.innerHTML=''; }
   function updateRx(n){ rxCount += n; els.rxBytes.textContent = `${rxCount.toLocaleString('ru-RU')} байт`; }
   function appendRaw(t){ els.raw.value += t; if (els.raw.value.length>20000) els.raw.value = els.raw.value.slice(-20000); els.raw.scrollTop = els.raw.scrollHeight; }
@@ -261,6 +272,19 @@
     setStatus('Соединение разорвано.');
   }
 
+  async function sendTare(tailKey, label){
+    if(!port || !port.writable) return;
+    const suffix = TARE_SUFFIXES[tailKey] ?? '';
+    try{
+      const w = port.writable.getWriter();
+      await w.write(new TextEncoder().encode('T' + suffix));
+      w.releaseLock();
+      setStatus('Tare command sent (' + label + ')');
+    }catch(e){
+      setStatus('Error sending Tare: ' + (e?.message||e));
+    }
+  }
+
   async function sendPrint(){
     if(!port || !port.writable) return;
     try{
@@ -278,6 +302,9 @@
   els.disconnect.addEventListener('click', disconnect);
   els.clear.addEventListener('click', ()=>{ els.raw.value=''; buffer=''; rxCount=0; updateRx(0); });
   els.sendPrint.addEventListener('click', sendPrint);
+  els.tareButtons.forEach(btn => {
+    btn.addEventListener('click', () => sendTare(btn.dataset.tareTail, btn.dataset.tareLabel));
+  });
   els.delimiter.addEventListener('change', flushBuffer);
 
   // Feature detect
